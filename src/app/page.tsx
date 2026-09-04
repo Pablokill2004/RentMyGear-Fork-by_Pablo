@@ -37,6 +37,15 @@ export default function HomePage() {
             Encuentra el equipo profesional que necesitas para fotografía,
             aventuras en montaña o deportes acuáticos.
           </p>
+          <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-x-8 gap-y-3 text-sm">
+            <span className="font-semibold text-primary">
+              Tarifas desde $100 MXN por día
+            </span>
+            <span className="text-muted-foreground">
+              Seguro de Daños opcional (Smart Insurance): 10%–20% de la tarifa
+              diaria según la categoría
+            </span>
+          </div>
         </div>
       </section>
 
