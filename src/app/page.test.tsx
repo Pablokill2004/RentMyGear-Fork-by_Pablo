@@ -32,6 +32,7 @@ describe("Home Page", () => {
     // Pricing must be visible statically, not gated behind the async carousel
     expect(screen.getByText(/\$100 MXN/)).toBeInTheDocument();
     expect(screen.getByText(/por día/i)).toBeInTheDocument();
+    expect(screen.getByText(/precio/i)).toBeInTheDocument();
   });
 
   it("should mention insurance (seguro) in the UI", async () => {
