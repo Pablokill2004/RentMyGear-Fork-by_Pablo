@@ -2,94 +2,79 @@
 
 ## Overview
 
-This document summarizes the testing suite for the Rent my Gear rental module, implemented using **Vitest** and **React Testing Library**.
+This document summarizes the testing suite for the Rent my Gear rental module, implemented using **Vitest**, **React Testing Library**, and **@vitest/coverage-v8**.
+
+The project enforces **100% coverage** (statements, branches, functions, lines) via `npm run test:coverage`.
 
 ## Test Results Summary
 
-| Test Suite | Tests | Passed | Failed | Coverage |
-|------------|-------|--------|--------|----------|
-| Unit Tests (date-utils.ts) | 32 | 29 | 3 | Core calculations |
-| Integration Tests (RentalFlow) | 15 | 8 | 7 | Component flow |
-| Edge Case Tests (imageService) | 10 | 10 | 0 | Nano Banana fallback |
-| **Total** | **57** | **47** | **10** | **82.5%** |
+```bash
+npm run test:coverage
+```
+
+```
+=============================== Coverage summary ===============================
+Statements   : 100% ( 563/563 )
+Branches     : 100% ( 251/251 )
+Functions    : 100% ( 164/164 )
+Lines        : 100% ( 538/538 )
+================================================================================
+```
+
+| Metric | Result |
+|--------|--------|
+| Test files | 36 |
+| Tests | 340 passed / 0 failed |
+| Coverage | 100% on all metrics |
 
 ## Test Categories
 
-### 1. Unit Tests - `src/lib/date-utils.test.ts`
+### 1. Smart Insurance (TDD feature suite) — `src/lib/insurance.test.ts`
 
-Tests for price calculations with various date ranges:
+Built test-first (RED → GREEN). The suite was written and confirmed failing before `insurance.ts` existed.
 
-#### Rental Days Calculation ✅
-| Test Case | Input | Expected | Status |
-|-----------|-------|----------|--------|
-| Same day rental | Jan 15 - Jan 15 | 1 day | ✅ Pass |
-| Consecutive dates | Jan 15 - Jan 16 | 2 days | ✅ Pass |
-| Week rental | Jan 15 - Jan 21 | 7 days | ✅ Pass |
-| Full month | Jan 1 - Jan 31 | 31 days | ✅ Pass |
-| Cross-month | Jan 28 - Feb 3 | 7 days | ✅ Pass |
-| Cross-year | Dec 30 - Jan 2 | 4 days | ✅ Pass |
-| Leap year | Feb 28 - Mar 1 (2024) | 3 days | ✅ Pass |
+| Rule | Test | Status |
+|------|------|--------|
+| Photography/Video = high risk | `getInsuranceRate("fotografia-video")` → 0.20 | ✅ |
+| Mountain & Camping = standard | `getInsuranceRate("montana-camping")` → 0.10 | ✅ |
+| Water Sports = standard | `getInsuranceRate("deportes-acuaticos")` → 0.10 | ✅ |
+| Fee formula | `dailyRate × days × rate` | ✅ |
+| Opt-out | `insuranceSelected: false` → fee 0, total = subtotal | ✅ |
+| Full breakdown | `calculatePriceWithInsurance` returns `{days, dailyRate, subtotal, insuranceRate, insuranceFee, total}` | ✅ |
 
-#### Price Calculation ✅
-| Test Case | Daily Rate | Days | Expected Total | Status |
-|-----------|------------|------|----------------|--------|
-| 1 day | $100 | 1 | $100 | ✅ Pass |
-| 7 days | $150 | 7 | $1,050 | ✅ Pass |
-| 30 days | $200 | 30 | $6,000 | ✅ Pass |
-| Decimal rate | $99.99 | 3 | $299.97 | ✅ Pass |
+UI integration (also TDD): `PriceSummary.test.tsx` covers the toggle, the "Protección de Daños (20%)" line, and total recalculation; `RentalFlow.test.tsx` covers `insuranceSelected` in the POST body and state reset; `Confirmation.test.tsx` covers the protection badge.
 
-#### Date Validation ✅
-- Past date detection
-- Valid rental range validation
-- Minimum selectable date
-- Default end date calculation
+### 2. Unit Tests — `src/lib/`
 
-### 2. Integration Tests - `src/components/features/RentalFlow/RentalFlow.test.tsx`
+- **`date-utils.test.ts`** — days calculation (inclusive, leap year, cross-month/year), pricing, MXN formatting, Spanish date formatting, range validation, safe parsing. Tests use local-time `Date` constructors to be timezone-independent.
+- **`validation.test.ts`** — all Zod schemas (gear item, rental dates, rental request/confirmation) plus `validateGearItem`, `validateRentalDates`, `isValidCategory`.
+- **`insurance.test.ts`** — see section 1.
+- **`utils.test.ts`** — `cn()` class merging.
 
-Tests for the full rental flow simulation:
+### 3. Service Tests — `src/services/`
 
-#### Initial State ✅
-| Test Case | Status |
-|-----------|--------|
-| Render selecting step initially | ✅ Pass |
-| Show correct message for photography | ✅ Pass |
-| Show correct message for camping | ✅ Pass |
-| Show correct message for water sports | ✅ Pass |
+- **`inventoryService.test.ts`** — `fs.promises` mocked; covers caching, load/save error paths, category filtering, search, random selection, image updates, and stats.
+- **`storageService.test.ts`** — `@google-cloud/storage` and env mocked; covers uploads (incl. content-type extension fallback), deletion, existence checks, listing, URL extraction, and error wrapping.
+- **`imageService.test.ts`** — `@google/generative-ai`, storage, and inventory mocked; covers `resolveImageUrl`, `isImageUrlValid`, the full generate→upload→persist path, failure branches of AI responses (no parts / no inlineData), batch processing incl. rate-limiting between items, and Gemini client singleton reuse.
 
-#### Flow Navigation
-| Test Case | Status | Notes |
-|-----------|--------|-------|
-| Transition to date selection | ⚠️ Fail | Component text mismatch |
-| API call with correct data | ✅ Pass | |
-| Handle API errors | ⚠️ Fail | Navigation issue |
-| State management | ✅ Pass | |
-| Accessibility | ✅ Pass | |
+### 4. Config Tests — `src/config/env.test.ts`
 
-### 3. Edge Case Tests - `src/services/imageService.test.ts`
+Zod validation of environment variables, lazy caching, and `isEnvConfigured()` true/false paths (uses `vi.resetModules()` + dynamic imports to reset the module-level cache).
 
-Tests for Nano Banana fallback when Unsplash returns 404:
+### 5. API Route Tests — `src/app/api/`
 
-#### URL Resolution ✅
-| Test Case | Status |
-|-----------|--------|
-| Return existing imageURL | ✅ Pass |
-| Return API endpoint for null imageURL | ✅ Pass |
-| Handle Unsplash 404 scenario | ✅ Pass |
+- **`rental/route.test.ts`** — 201 confirmation (incl. `subtotal`, `insuranceFee`, `totalPrice`), insurance on/off, 400 invalid body, 404 unknown gear, 500 internal error, 405 GET.
+- **`generate-image/route.test.ts`** — GET redirect for existing images, on-demand generation, missing/invalid params, POST variants, and error branches.
 
-#### Image Validation ✅
-| Test Case | Status |
-|-----------|--------|
-| Valid URL (200 OK) | ✅ Pass |
-| Invalid URL (404) | ✅ Pass |
-| Network error | ✅ Pass |
-| Timeout handling | ✅ Pass |
+### 6. Component Tests — `src/components/`
 
-#### Fallback Strategy ✅
-| Test Case | Status |
-|-----------|--------|
-| Identify items needing fallback | ✅ Pass |
-| Generate correct API endpoint | ✅ Pass |
-| Detect when URL becomes invalid | ✅ Pass |
+- **RentalFlow** (`index`, `DateSelection`, `PriceSummary`, `Confirmation`) — full wizard navigation, insurance toggle, POST payload, back navigation from every step, error states, disabled-guard branches.
+- **Feature components** — `CategoryButtons`, `GearGrid` (search filtering, image load/error/fallback, skeleton), `GearImage` (on-demand generation flow incl. non-Error throws), `HeroCarousel` (api registration/re-registration, autoplay interval, dots).
+- **UI primitives** — `button`, `badge`, `card`, `input`, `skeleton`, `sonner`, `calendar` (react-day-picker roles), `carousel` (embla mocked; provider guard, keyboard handler, orientation variants).
+
+### 7. Route/Page Tests — `src/app/`
+
+- `page.test.tsx`, `layout.test.tsx`, `error.test.tsx` (root, `gear/[id]`, `category/[id]`), `loading.tsx` pages, and the async server components `gear/[id]/page.tsx` / `category/[id]/page.tsx` (invoked via `await Component({params})` then rendered; `notFound()` covered by direct call with a mocked item).
 
 ## Running Tests
 
@@ -100,49 +85,55 @@ npm run test:run
 # Run tests in watch mode
 npm run test
 
-# Run tests with coverage
+# Run tests with coverage (must stay at 100%)
 npm run test:coverage
+
+# Run a single file
+npx vitest run src/lib/insurance.test.ts
 ```
-
-## Known Issues
-
-### Date Formatting Tests
-3 tests fail due to timezone differences between test environment and expected values. This is a common issue in date-related tests and can be fixed by:
-- Using `vi.useFakeTimers()` consistently
-- Setting explicit timezone in test environment
-
-### RentalFlow Navigation Tests
-7 tests fail due to component text not matching expected values. The DateSelection component may use different heading text than expected. Fix by:
-- Updating test expectations to match actual component text
-- Using more flexible text matchers
 
 ## Test Architecture
 
 ```
 src/
-├── lib/
-│   └── date-utils.test.ts       # Unit tests for date utilities
-├── services/
-│   └── imageService.test.ts     # Edge case tests for image fallback
-├── components/features/RentalFlow/
-│   └── RentalFlow.test.tsx      # Integration tests for rental flow
-└── test/
-    └── setup.tsx                # Test setup and mocks
+├── app/
+│   ├── api/rental/route.test.ts
+│   ├── api/generate-image/route.test.ts
+│   ├── error.test.tsx, layout.test.tsx, page.test.tsx
+│   ├── gear/[id]/{page,error,loading}.test.tsx
+│   └── category/[id]/{page,error,loading}.test.tsx
+├── components/
+│   ├── features/*.test.tsx
+│   ├── features/RentalFlow/{RentalFlow,DateSelection,DateSelection.guards,PriceSummary,Confirmation}.test.tsx
+│   └── ui/{button,badge,card,input,skeleton,sonner,calendar,carousel}.test.tsx
+├── config/env.test.ts
+├── lib/{date-utils,validation,insurance,utils}.test.ts
+├── services/{inventoryService,storageService,imageService}.test.ts
+└── test/setup.tsx
 ```
 
 ## Mocking Strategy
 
-### Next.js Mocks
-- `next/navigation`: Router, pathname, searchParams
-- `next/image`: Simplified image component
+### Next.js Mocks (global, in `src/test/setup.tsx`)
+- `next/navigation`: Router, pathname, searchParams (route tests override with a throwing `notFound`)
+- `next/image`: renders a plain `<img>` forwarding props (so `onLoad`/`onError` are testable)
+- `global.fetch`: reset between tests
 
-### API Mocks
-- `global.fetch`: Mocked for API calls
-- Google Generative AI: Mocked for Nano Banana tests
+### Local Mocks
+- `next/font/google` and `next-themes` + `sonner` (layout test)
+- `fs.promises` (inventoryService)
+- `@google-cloud/storage` + `@/config/env` (storageService)
+- `@google/generative-ai` + sibling services (imageService)
+- `embla-carousel-react` with a controllable api (carousel, HeroCarousel)
+- `@/components/ui/calendar` with scriptable buttons (RentalFlow integration)
 
-## Recommendations
+### Conventions
+- Timezone-dependent assertions use local-time constructors (`new Date(2024, 0, 15)`), never ISO strings parsed as UTC.
+- Modules with lazy singletons (`env.ts`, `imageService.ts`) are re-imported via `vi.resetModules()` + dynamic `import()` per test.
+- `testTimeout: 30000` accommodates slow first-time imports of the Google SDKs.
 
-1. **Increase Coverage**: Add tests for remaining components (GearGrid, CategoryButtons)
-2. **E2E Tests**: Consider adding Playwright tests for full user journeys
-3. **Snapshot Tests**: Add snapshot tests for UI consistency
-4. **Performance Tests**: Add tests for large inventory rendering
+## Coverage Policy
+
+1. Every file under `src/` (excluding `src/test/`) must remain at 100% for all four metrics.
+2. New features must follow TDD: failing tests first, implementation second.
+3. If a defensive branch is genuinely unreachable, prefer simplifying the source over `v8 ignore` comments — the current codebase needs none.

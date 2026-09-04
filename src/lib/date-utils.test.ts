@@ -11,6 +11,8 @@ import {
   getMinSelectableDate,
   getDefaultEndDate,
   parseDateSafe,
+  isDateAvailable,
+  getUnavailableDates,
 } from "./date-utils";
 
 describe("date-utils", () => {
@@ -128,7 +130,7 @@ describe("date-utils", () => {
 
   describe("formatDate", () => {
     it("should format date in Spanish locale", () => {
-      const date = new Date("2024-01-15");
+      const date = new Date(2024, 0, 15);
       const formatted = formatDate(date);
       expect(formatted).toContain("15");
       expect(formatted).toContain("enero");
@@ -143,8 +145,8 @@ describe("date-utils", () => {
 
   describe("formatDateRange", () => {
     it("should format date range correctly", () => {
-      const start = new Date("2024-01-15");
-      const end = new Date("2024-01-20");
+      const start = new Date(2024, 0, 15);
+      const end = new Date(2024, 0, 20);
       const formatted = formatDateRange(start, end);
       expect(formatted).toContain("-");
       expect(formatted).toContain("15");
@@ -233,7 +235,7 @@ describe("date-utils", () => {
 
   describe("getDefaultEndDate", () => {
     it("should return start date + 2 days", () => {
-      const start = new Date("2024-06-15");
+      const start = new Date(2024, 5, 15);
       const end = getDefaultEndDate(start);
       expect(end.getDate()).toBe(17);
     });
@@ -252,6 +254,35 @@ describe("date-utils", () => {
 
     it("should return null for empty string", () => {
       expect(parseDateSafe("")).toBeNull();
+    });
+
+    it("should return null when parseISO throws", () => {
+      expect(parseDateSafe(123 as unknown as string)).toBeNull();
+    });
+  });
+
+  describe("isDateAvailable", () => {
+    it("should return true for any date (mock implementation)", () => {
+      const date = new Date("2024-06-15");
+      expect(isDateAvailable(date, "gear-001")).toBe(true);
+    });
+
+    it("should return true for different gear IDs", () => {
+      const date = new Date("2024-12-25");
+      expect(isDateAvailable(date, "photo-001")).toBe(true);
+      expect(isDateAvailable(date, "camp-001")).toBe(true);
+      expect(isDateAvailable(date, "water-001")).toBe(true);
+    });
+  });
+
+  describe("getUnavailableDates", () => {
+    it("should return empty array (mock implementation)", () => {
+      expect(getUnavailableDates("gear-001")).toEqual([]);
+    });
+
+    it("should return empty array for different gear IDs", () => {
+      expect(getUnavailableDates("photo-001")).toEqual([]);
+      expect(getUnavailableDates("camp-001")).toEqual([]);
     });
   });
 });

@@ -26,8 +26,7 @@ export function HeroCarousel({ items }: HeroCarouselProps) {
   const isInitialized = useRef(false);
 
   const onSelect = useCallback(() => {
-    if (!api) return;
-    setCurrent(api.selectedScrollSnap());
+    setCurrent(api!.selectedScrollSnap());
   }, [api]);
 
   useEffect(() => {

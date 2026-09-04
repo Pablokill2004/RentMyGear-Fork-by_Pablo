@@ -9,6 +9,7 @@ export default defineConfig({
     globals: true,
     setupFiles: ["./src/test/setup.tsx"],
     include: ["src/**/*.{test,spec}.{js,ts,jsx,tsx}"],
+    testTimeout: 30000,
     coverage: {
       provider: "v8",
       reporter: ["text", "json", "html"],

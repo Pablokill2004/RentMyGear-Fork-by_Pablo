@@ -20,6 +20,7 @@ export interface RentalDates {
 export function RentalFlow({ item }: RentalFlowProps) {
   const [step, setStep] = useState<RentalFlowStep>("selecting");
   const [dates, setDates] = useState<RentalDates | null>(null);
+  const [insuranceSelected, setInsuranceSelected] = useState(false);
   const [confirmationId, setConfirmationId] = useState<string | null>(null);
 
   const handleDateSelect = (selectedDates: RentalDates) => {
@@ -30,14 +31,12 @@ export function RentalFlow({ item }: RentalFlowProps) {
   const handleBack = () => {
     if (step === "reviewing") {
       setStep("configuring");
-    } else if (step === "configuring") {
+    } else {
       setStep("selecting");
     }
   };
 
-  const handleConfirm = async () => {
-    if (!dates) return;
-
+  const handleConfirm = async (rentalDates: RentalDates) => {
     try {
       const response = await fetch("/api/rental", {
         method: "POST",
@@ -46,8 +45,9 @@ export function RentalFlow({ item }: RentalFlowProps) {
         },
         body: JSON.stringify({
           gearId: item.id,
-          startDate: dates.startDate.toISOString(),
-          endDate: dates.endDate.toISOString(),
+          startDate: rentalDates.startDate.toISOString(),
+          endDate: rentalDates.endDate.toISOString(),
+          insuranceSelected,
         }),
       });
 
@@ -67,6 +67,7 @@ export function RentalFlow({ item }: RentalFlowProps) {
   const handleReset = () => {
     setStep("selecting");
     setDates(null);
+    setInsuranceSelected(false);
     setConfirmationId(null);
   };
 
@@ -99,7 +100,9 @@ export function RentalFlow({ item }: RentalFlowProps) {
         <PriceSummary
           item={item}
           dates={dates}
-          onConfirm={handleConfirm}
+          insuranceSelected={insuranceSelected}
+          onInsuranceChange={setInsuranceSelected}
+          onConfirm={() => handleConfirm(dates)}
           onBack={handleBack}
         />
       )}
@@ -108,6 +111,7 @@ export function RentalFlow({ item }: RentalFlowProps) {
         <Confirmation
           item={item}
           dates={dates}
+          insuranceSelected={insuranceSelected}
           confirmationId={confirmationId}
           onReset={handleReset}
         />

@@ -11,6 +11,7 @@ Rent my Gear is a web application built with Next.js 16+ that allows users to ex
 - **Equipment Catalog**: 50 items distributed across 3 categories
 - **Real-time Search**: Instant filtering by name and description
 - **Rental Flow**: Date selection, price summary, and confirmation
+- **Smart Insurance**: Optional "Damage Protection" add-on with dynamic fees — 20% of the daily rate for Photography/Video (high risk), 10% for all other categories
 - **AI Image Generation**: Automatic fallback to Nano Banana for items without images
 - **GCS Persistence**: Generated images are permanently saved
 - **Spanish UI**: Interface fully in Spanish
@@ -118,22 +119,40 @@ npm run dev
 
 1. **Selection**: View equipment details and specifications
 2. **Configuration**: Select date range with validation
-3. **Summary**: View price breakdown (daily rate × days)
+3. **Summary**: View price breakdown (daily rate × days) and optionally add Damage Protection
 4. **Confirmation**: Confirm rental and receive confirmation number
+
+### Smart Insurance (Damage Protection)
+
+An optional add-on calculated dynamically by category risk:
+
+| Category | Insurance Fee |
+|----------|---------------|
+| `fotografia-video` (high risk) | 20% of daily rate × days |
+| `montana-camping` | 10% of daily rate × days |
+| `deportes-acuaticos` | 10% of daily rate × days |
+
+- Implemented as pure functions in `src/lib/insurance.ts` (`getInsuranceRate`, `calculateInsuranceFee`, `calculatePriceWithInsurance`)
+- Opt-in toggle in the rental summary step (`PriceSummary`), with the fee shown as a separate line in the breakdown
+- The selection is sent to `POST /api/rental` (`insuranceSelected`) and the backend recomputes `insuranceFee` and the final `totalPrice`
+- Built with strict TDD: failing test suite first (`src/lib/insurance.test.ts`), then implementation
 
 ## API Routes
 
 ### POST /api/rental
 
-Create a new rental.
+Create a new rental. `insuranceSelected` is optional (defaults to `false`).
 
 ```json
 {
   "gearId": "gear-001",
   "startDate": "2024-01-15T00:00:00Z",
-  "endDate": "2024-01-18T00:00:00Z"
+  "endDate": "2024-01-18T00:00:00Z",
+  "insuranceSelected": true
 }
 ```
+
+Response includes `subtotal`, `insuranceFee`, `insuranceRate`, and `totalPrice` (subtotal + insurance fee).
 
 ### GET /api/generate-image?id=gear-001
 
@@ -197,11 +216,16 @@ npm run test:coverage
 
 ### Test Coverage
 
-| Category | Tests | Pass Rate |
-|----------|-------|-----------|
-| Unit Tests (date-utils) | 32 | 90.6% |
-| Integration Tests (RentalFlow) | 15 | 53.3% |
-| Edge Cases (imageService) | 10 | 100% |
+The suite runs with **100% coverage** across all metrics (`npm run test:coverage`):
+
+| Metric | Coverage |
+|--------|----------|
+| Statements | 100% (563/563) |
+| Branches | 100% (251/251) |
+| Functions | 100% (164/164) |
+| Lines | 100% (538/538) |
+
+340 tests across 36 test files, covering utilities, validation, services, API routes, feature components, UI primitives, and page/error/loading routes.
 
 For detailed test documentation, see [docs/TESTING.md](docs/TESTING.md).
 
@@ -228,8 +252,10 @@ Comprehensive documentation is available in the `docs/` folder:
 The [Diagrams](docs/DIAGRAMS.md) document includes:
 
 - **Image Resolution Flow**: Sequence diagram showing JSON → Nano Banana → GCS persistence
-- **Service Class Diagram**: inventoryService and imageService interactions
-- **Rental Flow State Machine**: Multi-step wizard state transitions
+- **Smart Insurance Fee Calculation**: Flowchart of the 20%/10% dynamic fee decision by category
+- **Rental Flow with Insurance**: Sequence diagram of the pricing + insurance confirmation flow
+- **Service Class Diagram**: inventoryService, imageService, and insurance module interactions
+- **Rental Flow State Machine**: Multi-step wizard state transitions (with Damage Protection toggle)
 - **Component Hierarchy**: React component tree
 - **Data Flow Diagram**: Request/response flow through layers
 

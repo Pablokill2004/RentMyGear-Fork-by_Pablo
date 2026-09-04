@@ -134,12 +134,22 @@ classDiagram
         +isValidCategory(id: string) boolean
     }
 
+    class insurance {
+        +INSURANCE_RATE_HIGH_RISK number
+        +INSURANCE_RATE_STANDARD number
+        +HIGH_RISK_CATEGORY CategoryId
+        +getInsuranceRate(category: CategoryId) number
+        +calculateInsuranceFee(dailyRate: number, days: number, category: CategoryId) number
+        +calculatePriceWithInsurance(dailyRate, days, category, selected) PriceBreakdown
+    }
+
     inventoryService --> GearItem : manages
     imageService --> inventoryService : uses
     imageService --> storageService : uses
     imageService --> GearItem : processes
     storageService --> GearItem : stores images for
     validation --> GearItem : validates
+    insurance --> GearItem : prices
 ```
 
 ## Rental Flow State Machine
@@ -152,9 +162,10 @@ stateDiagram-v2
     Configuring --> Selecting: Click Back
     Configuring --> Reviewing: Select dates + Click "Continuar"
     Reviewing --> Configuring: Click Back
+    Reviewing --> Reviewing: Toggle "Protección de Daños" (recalculates total)
     Reviewing --> Confirmed: API Success
     Reviewing --> Reviewing: API Error (stay + show error)
-    Confirmed --> Selecting: Click "Hacer otra reservación"
+    Confirmed --> Selecting: Click "Rentar Otro Equipo" (clears dates + insurance)
 
     state Selecting {
         [*] --> ShowInitialUI
@@ -169,6 +180,8 @@ stateDiagram-v2
 
     state Reviewing {
         [*] --> ShowSummary
+        ShowSummary --> InsuranceToggled: Toggle Damage Protection
+        InsuranceToggled --> ShowSummary: Fee line + total updated
         ShowSummary --> Loading: Click "Confirmar"
         Loading --> ShowSummary: Error
     }
@@ -176,7 +189,68 @@ stateDiagram-v2
     state Confirmed {
         [*] --> ShowConfirmation
         ShowConfirmation --> DisplayNumber
+        DisplayNumber --> ShowInsuranceBadge: insurance selected
     }
+```
+
+## Smart Insurance Fee Calculation
+
+Decision logic for the optional "Damage Protection" add-on (`src/lib/insurance.ts`):
+
+```mermaid
+flowchart TD
+    A[Rental Summary rendered] --> B{User toggles<br/>Protección de Daños?}
+    B -->|Off| C[insuranceFee = 0<br/>total = subtotal]
+    B -->|On| D{item.category}
+
+    D -->|fotografia-video| E[rate = 0.20<br/>High Risk]
+    D -->|montana-camping| F[rate = 0.10<br/>Standard]
+    D -->|deportes-acuaticos| G[rate = 0.10<br/>Standard]
+
+    E --> H[fee = dailyRate x days x rate]
+    F --> H
+    G --> H
+
+    H --> I[Show fee line in breakdown<br/>e.g. Protección de Daños 20%]
+    I --> J[total = subtotal + fee]
+
+    C --> K[Confirm Renta]
+    J --> K
+
+    style E fill:#f96,stroke:#333
+    style F fill:#9cf,stroke:#333
+    style G fill:#9cf,stroke:#333
+```
+
+## Rental Pricing with Insurance — Sequence
+
+End-to-end flow from the wizard to the backend, including insurance handling:
+
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant PS as PriceSummary (client)
+    participant RF as RentalFlow (client)
+    participant API as POST /api/rental
+    participant INS as insurance.ts
+    participant INV as inventoryService
+
+    U->>PS: Toggle "Protección de Daños"
+    PS->>INS: getInsuranceRate(category)
+    INS-->>PS: 0.20 (foto) / 0.10 (otros)
+    PS->>INS: calculatePriceWithInsurance(rate, days, category, true)
+    INS-->>PS: {subtotal, insuranceFee, total}
+    PS-->>U: Show fee line + updated total
+
+    U->>PS: Click "Confirmar Renta"
+    PS->>RF: onConfirm()
+    RF->>API: {gearId, startDate, endDate, insuranceSelected}
+    API->>INV: getGearById(gearId)
+    INV-->>API: GearItem (dailyRate, category)
+    API->>INS: calculateInsuranceFee(dailyRate, days, category)
+    INS-->>API: insuranceFee
+    API-->>RF: {id, subtotal, insuranceFee, totalPrice, status: confirmed}
+    RF-->>U: Confirmation screen (shows Protection badge if selected)
 ```
 
 ## Component Hierarchy

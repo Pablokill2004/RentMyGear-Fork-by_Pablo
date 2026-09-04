@@ -72,7 +72,8 @@ A premium equipment rental marketplace where users can:
 1. **Smart Image Strategy**: Uses existing Unsplash images when available, generates with AI when not
 2. **Real-time Search**: Instant filtering without page reload
 3. **Multi-step Rental Flow**: Guided experience from selection to confirmation
-4. **Spanish UI**: Full localization for Spanish-speaking users
+4. **Smart Insurance (Damage Protection)**: Optional add-on with dynamic fees — 20% of the daily rate for Photography/Video (high risk), 10% for all other categories
+5. **Spanish UI**: Full localization for Spanish-speaking users
 
 ---
 
@@ -120,6 +121,7 @@ src/
 | File | Purpose | Key Concepts |
 |------|---------|--------------|
 | `src/lib/validation.ts` | Zod schemas | Type definitions, validation rules |
+| `src/lib/insurance.ts` | Smart Insurance pricing | Category-based fee calculation (20%/10%) |
 | `src/services/inventoryService.ts` | Data access | Caching, CRUD operations |
 | `src/services/imageService.ts` | Image logic | AI generation, GCS upload |
 | `src/components/features/RentalFlow/index.tsx` | Rental wizard | Multi-step form, state machine |
@@ -217,6 +219,43 @@ function RentalFlow({ item }) {
   // reviewing -> confirmed (API success)
 }
 ```
+
+### 5. Smart Insurance (Damage Protection)
+
+An optional add-on with a fee that depends on the category risk profile. Photography/Video is classified as high risk (20% of the daily rate); all other categories are standard (10%).
+
+```typescript
+// src/lib/insurance.ts
+
+export const INSURANCE_RATE_HIGH_RISK = 0.2; // fotografia-video
+export const INSURANCE_RATE_STANDARD = 0.1;  // montana-camping, deportes-acuaticos
+
+export function getInsuranceRate(category: CategoryId): number {
+  return category === HIGH_RISK_CATEGORY
+    ? INSURANCE_RATE_HIGH_RISK
+    : INSURANCE_RATE_STANDARD;
+}
+
+// fee = dailyRate x days x rate
+export function calculateInsuranceFee(
+  dailyRate: number,
+  days: number,
+  category: CategoryId
+): number {
+  return dailyRate * days * getInsuranceRate(category);
+}
+```
+
+**How it flows through the app:**
+
+1. `RentalFlow` owns the `insuranceSelected` boolean state
+2. `PriceSummary` (reviewing step) renders the toggle and, when active, adds a "Protección de Daños (20%)" line to the breakdown; `total = subtotal + insuranceFee`
+3. On confirm, `insuranceSelected` is sent to `POST /api/rental`; the route (never trust the client) recomputes the fee server-side and returns `subtotal`, `insuranceFee`, and `totalPrice`
+4. `Confirmation` shows the protection badge when insurance was selected
+
+**TDD note:** This feature was built test-first — `src/lib/insurance.test.ts` was written and confirmed failing (RED) before the implementation existed. If you change pricing rules, update the tests first.
+
+**Adding a new risk tier:** extend the rate constants and `getInsuranceRate`, then add category cases to `src/lib/insurance.test.ts`. Keep the 100% coverage gate green (`npm run test:coverage`).
 
 ---
 
@@ -494,6 +533,7 @@ npm run dev
 
 - [ ] Added category ID to `CATEGORY_IDS` in `validation.ts`
 - [ ] Added category info to `CATEGORIES` in `validation.ts`
+- [ ] Reviewed insurance risk tier in `src/lib/insurance.ts` (new categories fall back to the standard 10% rate)
 - [ ] TypeScript compiles without errors
 - [ ] Added at least one item to inventory
 - [ ] Category page loads correctly

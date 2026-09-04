@@ -2,12 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { getGearById } from "@/services/inventoryService";
 import { calculateRentalPrice, formatPrice } from "@/lib/date-utils";
+import { calculateInsuranceFee, getInsuranceRate } from "@/lib/insurance";
 
 // Request schema
 const rentalRequestSchema = z.object({
   gearId: z.string().min(1),
   startDate: z.string().datetime(),
   endDate: z.string().datetime(),
+  insuranceSelected: z.boolean().optional().default(false),
 });
 
 // Mock rental ID generator
@@ -33,7 +35,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { gearId, startDate, endDate } = validation.data;
+    const { gearId, startDate, endDate, insuranceSelected } = validation.data;
 
     // Get gear item
     const item = await getGearById(gearId);
@@ -49,6 +51,13 @@ export async function POST(request: NextRequest) {
     const end = new Date(endDate);
     const pricing = calculateRentalPrice(item.dailyRate, start, end);
 
+    // Calculate insurance
+    const insuranceFee = insuranceSelected
+      ? calculateInsuranceFee(item.dailyRate, pricing.days, item.category)
+      : 0;
+    const insuranceRate = insuranceSelected ? getInsuranceRate(item.category) : 0;
+    const totalPrice = pricing.total + insuranceFee;
+
     // Generate confirmation
     const confirmation = {
       id: generateRentalId(),
@@ -58,8 +67,12 @@ export async function POST(request: NextRequest) {
       endDate,
       totalDays: pricing.days,
       dailyRate: pricing.dailyRate,
-      totalPrice: pricing.total,
-      formattedTotal: formatPrice(pricing.total),
+      subtotal: pricing.total,
+      insuranceSelected,
+      insuranceFee,
+      insuranceRate,
+      totalPrice,
+      formattedTotal: formatPrice(totalPrice),
       status: "confirmed" as const,
       createdAt: new Date().toISOString(),
     };

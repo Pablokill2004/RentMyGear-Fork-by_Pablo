@@ -4,11 +4,33 @@ import userEvent from "@testing-library/user-event";
 import { RentalFlow } from "./index";
 import { GearItem } from "@/lib/validation";
 
-// Mock fetch globally
+const futureStart = new Date();
+futureStart.setDate(futureStart.getDate() + 5);
+const futureEnd = new Date();
+futureEnd.setDate(futureEnd.getDate() + 7);
+
+vi.mock("@/components/ui/calendar", () => ({
+  Calendar: ({ onSelect }: any) => {
+    const start = new Date();
+    start.setDate(start.getDate() + 5);
+    const end = new Date();
+    end.setDate(end.getDate() + 7);
+    return (
+      <div data-testid="calendar">
+        <button
+          data-testid="mock-select-dates"
+          onClick={() => onSelect({ from: start, to: end })}
+        >
+          Mock Select Dates
+        </button>
+      </div>
+    );
+  },
+}));
+
 const mockFetch = vi.fn();
 global.fetch = mockFetch;
 
-// Sample gear items for different categories
 const photographyGear: GearItem = {
   id: "photo-001",
   name: "Canon EOS R5",
@@ -19,25 +41,15 @@ const photographyGear: GearItem = {
   imageURL: "https://example.com/camera.jpg",
 };
 
-const campingGear: GearItem = {
-  id: "camp-001",
-  name: "North Face Tent",
-  category: "montana-camping",
-  description: "4-person expedition tent",
-  specs: { capacity: "4 persons", weight: "3.5kg" },
-  dailyRate: 200,
-  imageURL: "https://example.com/tent.jpg",
-};
-
-const waterSportsGear: GearItem = {
-  id: "water-001",
-  name: "Kayak Pro",
-  category: "deportes-acuaticos",
-  description: "Professional sea kayak",
-  specs: { length: "4.5m", weight: "20kg" },
-  dailyRate: 300,
-  imageURL: "https://example.com/kayak.jpg",
-};
+async function navigateToReviewing(user: ReturnType<typeof userEvent.setup>) {
+  render(<RentalFlow item={photographyGear} />);
+  await user.click(screen.getByText("Seleccionar Fechas"));
+  await user.click(screen.getByTestId("mock-select-dates"));
+  await user.click(screen.getByRole("button", { name: /continuar/i }));
+  await waitFor(() => {
+    expect(screen.getByText("Resumen de Renta")).toBeInTheDocument();
+  });
+}
 
 describe("RentalFlow Integration Tests", () => {
   beforeEach(() => {
@@ -48,195 +60,187 @@ describe("RentalFlow Integration Tests", () => {
   describe("Initial State", () => {
     it("should render selecting step initially", () => {
       render(<RentalFlow item={photographyGear} />);
-
       expect(screen.getByText("Rentar este equipo")).toBeInTheDocument();
       expect(screen.getByText("Seleccionar Fechas")).toBeInTheDocument();
     });
 
-    it("should show correct initial message for photography category", () => {
+    it("should transition to configuring step", async () => {
+      const user = userEvent.setup();
       render(<RentalFlow item={photographyGear} />);
-
-      expect(
-        screen.getByText(/Selecciona las fechas para tu renta/)
-      ).toBeInTheDocument();
-    });
-
-    it("should show correct initial message for camping category", () => {
-      render(<RentalFlow item={campingGear} />);
-
-      expect(
-        screen.getByText(/Selecciona las fechas para tu renta/)
-      ).toBeInTheDocument();
-    });
-
-    it("should show correct initial message for water sports category", () => {
-      render(<RentalFlow item={waterSportsGear} />);
-
-      expect(
-        screen.getByText(/Selecciona las fechas para tu renta/)
-      ).toBeInTheDocument();
+      await user.click(screen.getByText("Seleccionar Fechas"));
+      expect(screen.getByTestId("calendar")).toBeInTheDocument();
     });
   });
 
-  describe("Date Selection Flow", () => {
-    it("should transition to configuring step when clicking 'Seleccionar Fechas'", async () => {
+  describe("Full Flow with Insurance Toggle", () => {
+    it("should navigate to reviewing step and toggle insurance", async () => {
       const user = userEvent.setup();
-      render(<RentalFlow item={photographyGear} />);
+      await navigateToReviewing(user);
 
-      await user.click(screen.getByText("Seleccionar Fechas"));
-
-      expect(screen.getByText("Selección de Fechas")).toBeInTheDocument();
+      expect(screen.queryByText(/Protección de Daños \(/)).not.toBeInTheDocument();
+      const checkbox = screen.getByRole("checkbox");
+      await user.click(checkbox);
+      expect(screen.getByText(/Protección de Daños \(/)).toBeInTheDocument();
     });
 
-    it("should show calendar component after clicking select dates", async () => {
+    it("should send insuranceSelected=true in POST body", async () => {
       const user = userEvent.setup();
-      render(<RentalFlow item={campingGear} />);
-
-      await user.click(screen.getByText("Seleccionar Fechas"));
-
-      // Calendar should be visible
-      expect(screen.getByText("Selección de Fechas")).toBeInTheDocument();
-    });
-  });
-
-  describe("Category-Specific Tests", () => {
-    it("should handle photography gear item", async () => {
-      const user = userEvent.setup();
-      render(<RentalFlow item={photographyGear} />);
-
-      // Verify initial state
-      expect(screen.getByText("Rentar este equipo")).toBeInTheDocument();
-
-      // Click to start date selection
-      await user.click(screen.getByText("Seleccionar Fechas"));
-
-      // Should be in date selection mode
-      expect(screen.getByText("Selección de Fechas")).toBeInTheDocument();
-    });
-
-    it("should handle camping gear item", async () => {
-      const user = userEvent.setup();
-      render(<RentalFlow item={campingGear} />);
-
-      expect(screen.getByText("Rentar este equipo")).toBeInTheDocument();
-
-      await user.click(screen.getByText("Seleccionar Fechas"));
-
-      expect(screen.getByText("Selección de Fechas")).toBeInTheDocument();
-    });
-
-    it("should handle water sports gear item", async () => {
-      const user = userEvent.setup();
-      render(<RentalFlow item={waterSportsGear} />);
-
-      expect(screen.getByText("Rentar este equipo")).toBeInTheDocument();
-
-      await user.click(screen.getByText("Seleccionar Fechas"));
-
-      expect(screen.getByText("Selección de Fechas")).toBeInTheDocument();
-    });
-  });
-
-  describe("API Integration", () => {
-    it("should call API with correct data structure", async () => {
-      const user = userEvent.setup();
-
       mockFetch.mockResolvedValueOnce({
         ok: true,
-        json: async () => ({
-          id: "rental-123",
-          status: "confirmed",
-        }),
+        json: async () => ({ id: "rental-123", status: "confirmed" }),
       });
 
-      render(<RentalFlow item={photographyGear} />);
+      await navigateToReviewing(user);
 
-      await user.click(screen.getByText("Seleccionar Fechas"));
+      await user.click(screen.getByRole("checkbox"));
+      await user.click(screen.getByRole("button", { name: /confirmar renta/i }));
 
-      // Find and click continue button (using role)
-      const buttons = screen.getAllByRole("button");
-      const continueButton = buttons.find((btn) =>
-        btn.textContent?.includes("Continuar")
-      );
-
-      if (continueButton) {
-        await user.click(continueButton);
-
-        await waitFor(() => {
-          // Should transition to review step
-          const reviewHeader = screen.queryByText("Resumen de Renta");
-          if (reviewHeader) {
-            expect(reviewHeader).toBeInTheDocument();
-          }
-        });
-      }
+      await waitFor(() => {
+        expect(mockFetch).toHaveBeenCalledWith(
+          "/api/rental",
+          expect.objectContaining({
+            method: "POST",
+            body: expect.stringContaining('"insuranceSelected":true'),
+          })
+        );
+      });
     });
 
-    it("should handle API error gracefully without crashing", async () => {
+    it("should send insuranceSelected=false when insurance not toggled", async () => {
       const user = userEvent.setup();
-      const consoleSpy = vi
-        .spyOn(console, "error")
-        .mockImplementation(() => {});
-
       mockFetch.mockResolvedValueOnce({
-        ok: false,
-        status: 500,
+        ok: true,
+        json: async () => ({ id: "rental-456", status: "confirmed" }),
       });
 
+      await navigateToReviewing(user);
+
+      await user.click(screen.getByRole("button", { name: /confirmar renta/i }));
+
+      await waitFor(() => {
+        expect(mockFetch).toHaveBeenCalledWith(
+          "/api/rental",
+          expect.objectContaining({
+            body: expect.stringContaining('"insuranceSelected":false'),
+          })
+        );
+      });
+    });
+  });
+
+  describe("Confirmation and Reset", () => {
+    it("should show confirmation step after successful API call", async () => {
+      const user = userEvent.setup();
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ id: "rental-789", status: "confirmed" }),
+      });
+
+      await navigateToReviewing(user);
+      await user.click(screen.getByRole("button", { name: /confirmar renta/i }));
+
+      await waitFor(() => {
+        expect(screen.getByText("¡Renta Confirmada!")).toBeInTheDocument();
+      });
+    });
+
+    it("should reset to selecting step when reset is clicked", async () => {
+      const user = userEvent.setup();
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ id: "rental-reset", status: "confirmed" }),
+      });
+
+      await navigateToReviewing(user);
+      await user.click(screen.getByRole("button", { name: /confirmar renta/i }));
+
+      await waitFor(() => {
+        expect(screen.getByText("¡Renta Confirmada!")).toBeInTheDocument();
+      });
+
+      await user.click(screen.getByText("Rentar Otro Equipo"));
+
+      await waitFor(() => {
+        expect(screen.getByText("Rentar este equipo")).toBeInTheDocument();
+      });
+    });
+
+    it("should clear insurance state on reset", async () => {
+      const user = userEvent.setup();
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ id: "rental-clear", status: "confirmed" }),
+      });
+
+      await navigateToReviewing(user);
+      await user.click(screen.getByRole("checkbox"));
+
+      expect(screen.getByText(/Protección de Daños \(/)).toBeInTheDocument();
+
+      await user.click(screen.getByRole("button", { name: /confirmar renta/i }));
+
+      await waitFor(() => {
+        expect(screen.getByText("¡Renta Confirmada!")).toBeInTheDocument();
+      });
+
+      await user.click(screen.getByText("Rentar Otro Equipo"));
+
+      await waitFor(() => {
+        expect(screen.getByText("Rentar este equipo")).toBeInTheDocument();
+      });
+
+      await user.click(screen.getByText("Seleccionar Fechas"));
+      await user.click(screen.getByTestId("mock-select-dates"));
+      await user.click(screen.getByRole("button", { name: /continuar/i }));
+
+      await waitFor(() => {
+        expect(screen.getByText("Resumen de Renta")).toBeInTheDocument();
+      });
+
+      expect(screen.queryByText(/Protección de Daños \(/)).not.toBeInTheDocument();
+    });
+  });
+
+  describe("Back Navigation", () => {
+    it("should navigate back from reviewing to configuring step", async () => {
+      const user = userEvent.setup();
+      await navigateToReviewing(user);
+
+      const backButton = screen.getAllByRole("button")[0];
+      await user.click(backButton);
+
+      expect(screen.getByTestId("calendar")).toBeInTheDocument();
+    });
+
+    it("should navigate back from configuring to selecting step", async () => {
+      const user = userEvent.setup();
       render(<RentalFlow item={photographyGear} />);
 
-      // Start the flow
       await user.click(screen.getByText("Seleccionar Fechas"));
+      expect(screen.getByTestId("calendar")).toBeInTheDocument();
 
-      // Component should not crash
-      expect(screen.getByText("Selección de Fechas")).toBeInTheDocument();
+      const backButton = screen.getAllByRole("button")[0];
+      await user.click(backButton);
+
+      expect(screen.getByText("Rentar este equipo")).toBeInTheDocument();
+    });
+  });
+
+  describe("API Error Handling", () => {
+    it("should handle API error gracefully", async () => {
+      const user = userEvent.setup();
+      const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+      mockFetch.mockResolvedValueOnce({ ok: false, status: 500 });
+
+      await navigateToReviewing(user);
+
+      await user.click(screen.getByRole("button", { name: /confirmar renta/i }));
+
+      await waitFor(() => {
+        expect(consoleSpy).toHaveBeenCalled();
+      });
 
       consoleSpy.mockRestore();
-    });
-  });
-
-  describe("State Management", () => {
-    it("should maintain item data throughout flow", () => {
-      render(<RentalFlow item={photographyGear} />);
-
-      // Item should be associated with the flow
-      expect(screen.getByText("Rentar este equipo")).toBeInTheDocument();
-    });
-
-    it("should reset properly when requested", async () => {
-      const user = userEvent.setup();
-
-      mockFetch.mockResolvedValue({
-        ok: true,
-        json: async () => ({
-          id: "rental-123",
-          status: "confirmed",
-        }),
-      });
-
-      render(<RentalFlow item={photographyGear} />);
-
-      // Start the flow
-      await user.click(screen.getByText("Seleccionar Fechas"));
-
-      // Should be in date selection
-      expect(screen.getByText("Selección de Fechas")).toBeInTheDocument();
-    });
-  });
-
-  describe("Accessibility", () => {
-    it("should have accessible button for selecting dates", () => {
-      render(<RentalFlow item={photographyGear} />);
-
-      const selectButton = screen.getByText("Seleccionar Fechas");
-      expect(selectButton).toBeInTheDocument();
-      expect(selectButton.tagName.toLowerCase()).toBe("button");
-    });
-
-    it("should have proper heading structure", () => {
-      render(<RentalFlow item={photographyGear} />);
-
-      expect(screen.getByText("Rentar este equipo")).toBeInTheDocument();
     });
   });
 });

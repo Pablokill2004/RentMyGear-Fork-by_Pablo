@@ -3,14 +3,16 @@
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { CheckCircle, Calendar, ArrowRight } from "lucide-react";
+import { CheckCircle, Calendar, ArrowRight, ShieldCheck } from "lucide-react";
 import { GearItem } from "@/lib/validation";
-import { formatDateRange } from "@/lib/date-utils";
+import { formatDateRange, formatPrice } from "@/lib/date-utils";
+import { calculatePriceWithInsurance } from "@/lib/insurance";
 import type { RentalDates } from "./index";
 
 interface ConfirmationProps {
   item: GearItem;
   dates: RentalDates;
+  insuranceSelected: boolean;
   confirmationId: string | null;
   onReset: () => void;
 }
@@ -18,9 +20,20 @@ interface ConfirmationProps {
 export function Confirmation({
   item,
   dates,
+  insuranceSelected,
   confirmationId,
   onReset,
 }: ConfirmationProps) {
+  const days = Math.abs(
+    Math.ceil((dates.endDate.getTime() - dates.startDate.getTime()) / (1000 * 60 * 60 * 24))
+  ) + 1;
+
+  const pricing = calculatePriceWithInsurance(
+    item.dailyRate,
+    days,
+    item.category,
+    insuranceSelected
+  );
   return (
     <Card className="overflow-hidden">
       {/* Success header */}
@@ -60,6 +73,19 @@ export function Confirmation({
               </p>
             </div>
           </div>
+          {insuranceSelected && (
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center flex-shrink-0">
+                <ShieldCheck className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+              </div>
+              <div>
+                <p className="font-medium">Protección de Daños incluida</p>
+                <p className="text-sm text-muted-foreground">
+                  {formatPrice(pricing.insuranceFee)} ({Math.round(pricing.insuranceRate * 100)}%)
+                </p>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Next steps */}
