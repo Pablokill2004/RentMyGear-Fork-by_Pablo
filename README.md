@@ -227,6 +227,19 @@ The suite runs with **100% coverage** across all metrics (`npm run test:coverage
 
 340 tests across 36 test files, covering utilities, validation, services, API routes, feature components, UI primitives, and page/error/loading routes.
 
+#### Core business-logic tests (TDD)
+
+The Smart Insurance pricing logic and its dependencies are covered by dedicated unit tests colocated with each source file:
+
+| Source | Test file | Covers |
+|--------|-----------|--------|
+| `src/lib/insurance.ts` | `src/lib/insurance.test.ts` | 20%/10% rate rules, fee formula, opt-out, full price breakdown |
+| `src/lib/date-utils.ts` | `src/lib/date-utils.test.ts` | Days calculation, pricing, MXN/currency formatting, safe parsing |
+| `src/lib/validation.ts` | `src/lib/validation.test.ts` | All Zod schemas and validators |
+| `src/lib/utils.ts` | `src/lib/utils.test.ts` | `cn()` class merging |
+
+The insurance suite was written **before** the implementation (see the RED → GREEN commit pair in `git log`).
+
 For detailed test documentation, see [docs/TESTING.md](docs/TESTING.md).
 
 ## Documentation
